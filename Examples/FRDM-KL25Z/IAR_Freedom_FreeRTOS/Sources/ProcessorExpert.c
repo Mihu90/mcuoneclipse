@@ -23,6 +23,7 @@
 #include "RTOSTICKLDD1.h"
 #include "UTIL1.h"
 #include "HF1.h"
+#include "WAIT1.h"
 #include "LED1.h"
 #include "LEDpin1.h"
 #include "BitIoLdd1.h"
@@ -53,7 +54,7 @@ int main(void)
   /*** End of Processor Expert internal initialization.                    ***/
 
   /* Write your code here */
-  f();
+  //f(); /* enforce a hard fault exception for test */
   /* For example: for(;;) { } */
   if (FRTOS1_xTaskCreate(MyTask, (signed portCHAR *)"Task",
 		  configMINIMAL_STACK_SIZE, NULL, tskIDLE_PRIORITY, NULL) != pdPASS) {

@@ -96,6 +96,10 @@
 #include "task.h"
 %endif
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 %if defined(ManualClockValues) & ManualClockValues='yes'
 #undef CPU_BUS_CLK_HZ         %>%CTAB /* if already defined in "%ProcessorModule.h" */
 #define CPU_BUS_CLK_HZ          %'CpuBusClkHz'UL      %>%CTAB /*!< CPU clock frequency (normal operation) */
@@ -260,6 +264,10 @@ void %'ModuleName'%.%Waitns(word ns);
 %endif
 %include Common\WaitWaitOSms.Inc
 
+#ifdef __cplusplus
+}  /* extern "C" */
+#endif
+
 %endif %- WaitOSms
 %-BW_METHOD_END WaitOSms
 %-BW_DEFINITION_END
@@ -294,8 +302,8 @@ void %'ModuleName'%.%Waitns(word ns);
 %-   Example:
 %-     static int counter1;
 %-     int %'ModuleName'%.counter2;
-/* tell the compiler not to inline functions in this module, as they are timing critical */
 %if (CPU_FAMILY = "ColdFireV1")
+/* tell the compiler not to inline functions in this module, as they are timing critical */
 #pragma dont_inline on
 %endif
 
@@ -309,7 +317,11 @@ void %'ModuleName'%.%Waitns(word ns);
 %-BW_METHOD_BEGIN Wait10Cycles
 %ifdef Wait10Cycles
 %include Common\WaitWait10Cycles.Inc
+%if (CPU_FAMILY = "Kinetis") & %Compiler = "GNUC"
+__attribute__((naked)) void %'ModuleName'%.%Wait10Cycles(void)
+%else
 void %'ModuleName'%.%Wait10Cycles(void)
+%endif
 {
   /* This function will wait 10 CPU cycles (including call overhead). */
 %if (CPU_FAMILY = "HCS08") | (CPU_FAMILY = "HC08")
@@ -338,62 +350,41 @@ void %'ModuleName'%.%Wait10Cycles(void)
                        %>%CTAB /* [5] for RTS, return from subroutine */
   }
 %elif (CPU_FAMILY = "Kinetis")
-  /* NOTE: this is not really accurate, as not sure yet about the cycle counts. Assuming 1 cycle for a NOP */
+  /* NOTE: Cortex-M0 and M4 have 1 cycle for a NOP */
   /* Compiler is %Compiler */
 %if %Compiler = "GNUC"
-  asm(
-   "nop \n\t"
-   "nop \n\t"
-   "nop \n\t"
-   "nop \n\t"
-   "nop \n\t"
-   "nop \n\t"
-   "nop \n\t"
-   "nop \n\t"
-   "nop \n\t"
-   "nop \n\t"
+  asm (
+   /* bl Wai10Cycles() to here: [4] */
+   "nop   \n\t" /* [1] */
+   "nop   \n\t" /* [1] */
+   "nop   \n\t" /* [1] */
+   "bx lr \n\t" /* [3] */
   );
 %elif (%Compiler = "IARARM")
-  asm("nop");
-  asm("nop");
-  asm("nop");
-  asm("nop");
-  asm("nop");
-  asm("nop");
-  asm("nop");
-  asm("nop");
-  asm("nop");
-  asm("nop");
+  /* bl Wai10Cycles() to here: [4] */
+  asm("nop");   /* [1] */
+  asm("nop");   /* [1] */
+  asm("nop");   /* [1] */
+  asm("bx lr"); /* [3] */
 %elif (%Compiler = "ARM_CC") %- Keil/ARM compiler
   __asm {
-    nop                %>%CTAB /* assuming one cycle for nop */
-    nop                %>%CTAB /* assuming one cycle for nop */
-    nop                %>%CTAB /* assuming one cycle for nop */
-    nop                %>%CTAB /* assuming one cycle for nop */
-    nop                %>%CTAB /* assuming one cycle for nop */
-    nop                %>%CTAB /* assuming one cycle for nop */
-    nop                %>%CTAB /* assuming one cycle for nop */
-    nop                %>%CTAB /* assuming one cycle for nop */
-    nop                %>%CTAB /* assuming one cycle for nop */
-    nop                %>%CTAB /* assuming one cycle for nop */
+    nop                %>%CTAB /* [1] */
+    nop                %>%CTAB /* [1] */
+    nop                %>%CTAB /* [1] */
+    /*bx lr*/          %>%CTAB /* [3] */
   }
 %else
   asm {
-    nop                %>%CTAB /* assuming one cycle for nop */
-    nop                %>%CTAB /* assuming one cycle for nop */
-    nop                %>%CTAB /* assuming one cycle for nop */
-    nop                %>%CTAB /* assuming one cycle for nop */
-    nop                %>%CTAB /* assuming one cycle for nop */
-    nop                %>%CTAB /* assuming one cycle for nop */
-    nop                %>%CTAB /* assuming one cycle for nop */
-    nop                %>%CTAB /* assuming one cycle for nop */
-    nop                %>%CTAB /* assuming one cycle for nop */
-    nop                %>%CTAB /* assuming one cycle for nop */
+    nop                %>%CTAB /* [1] */
+    nop                %>%CTAB /* [1] */
+    nop                %>%CTAB /* [1] */
+    bx lr              %>%CTAB /* [3] */
   }
 %endif
 %elif (CPU_FAMILY = "56800")
   /* JSR to here is 4-5 cycles */
   /* RTS is 8 cycles */
+  #warning "unsupported CPU family %CPUfamily"
 %else
   #warning "unsupported CPU family %CPUfamily"
   volatile byte i = 0; /* just something to wait, NOT the requested 10 cycles */
@@ -405,7 +396,16 @@ void %'ModuleName'%.%Wait10Cycles(void)
 %-BW_METHOD_BEGIN Wait100Cycles
 %ifdef Wait100Cycles
 %include Common\WaitWait100Cycles.Inc
+%if (%Compiler = "IARARM")
+  /* Implemented in assembly file, as IAR does not support labels in HLI */
+%else
+%if (CPU_FAMILY = "Kinetis") & %Compiler = "GNUC"
+__attribute__((naked)) void %'ModuleName'%.%Wait100Cycles(void)
+%elif (CPU_FAMILY = "Kinetis") & (%Compiler = "ARM_CC") %- Keil/ARM compiler
+__asm void %'ModuleName'%.%Wait100Cycles(void)
+%else
 void %'ModuleName'%.%Wait100Cycles(void)
+%endif
 {
   /* This function will spend 100 CPU cycles (including call overhead). */
 %if (CPU_FAMILY = "HCS08") | (CPU_FAMILY = "HC08")
@@ -447,26 +447,55 @@ void %'ModuleName'%.%Wait100Cycles(void)
                        %>%CTAB /* [5] return from subroutine */
   }
 %elif (CPU_FAMILY = "Kinetis")
-  volatile byte i;
-
-  for(i=0; i<133; i++) {
-    /* NOTE: this is not really accurate, as not sure yet about the cycle counts. Assuming 0.75 cycle for a NOP */
 %if %Compiler = "GNUC"
-    asm(
-     "nop \n\t"
-    );
+  asm (
+   /* bl to here:               [4] */
+   "movs r0, #0 \n\t"        /* [1] */
+   "loop:       \n\t"
+   "nop         \n\t"        /* [1] */
+   "nop         \n\t"        /* [1] */
+   "nop         \n\t"        /* [1] */
+   "nop         \n\t"        /* [1] */
+   "nop         \n\t"        /* [1] */
+   "add r0,#1   \n\t"        /* [1] */
+   "cmp r0,#9   \n\t"        /* [1] */
+   "bls loop    \n\t"        /* [3] taken, [1] not taken */
+   "nop         \n\t"        /* [1] */
+   "bx lr       \n\t"        /* [3] */
+  );
 %elif (%Compiler = "IARARM")
-  asm("nop");
+  /* need to implement in assembly, as IAR does not support labels in HLI */
 %elif (%Compiler = "ARM_CC") %- Keil/ARM compiler
-    __asm {
-      NOP
-    }
+   /* bl to here:    [4] */
+    movs r0, #0   /* [1] */
+loop
+    nop           /* [1] */
+    nop           /* [1] */
+    nop           /* [1] */
+    nop           /* [1] */
+    nop           /* [1] */
+    adds r0,r0,#1 /* [1] */
+    cmp r0,#9     /* [1] */
+    bls loop      /* [3] taken, [1] not taken */
+    nop           /* [1] */
+    bx lr         /* [3] */
 %else
-    asm {
-      NOP
-    }
+  asm {
+   /* bl Wai10Cycles() to here: [4] */
+    movs r0, #0 /* [1] */
+   loop:
+    nop         /* [1] */
+    nop         /* [1] */
+    nop         /* [1] */
+    nop         /* [1] */
+    nop         /* [1] */
+    add r0,#1   /* [1] */
+    cmp r0,#9   /* [1] */
+    bls loop    /* [3] taken, [1] not taken */
+    nop         /* [1] */
+    bx lr       /* [3] */
+  }
 %endif
-  } /* just something to wait, NOT the requested 100 cycles */
 %elif (CPU_FAMILY = "56800")
   /* JSR to here is 4-5 cycles */
   asm {
@@ -482,6 +511,8 @@ void %'ModuleName'%.%Wait100Cycles(void)
   for(i=0; i<50; i++); /* just something to wait, NOT the requested 100 cycles */
 %endif
 }
+%endif  %-(%Compiler = "IARARM")
+
 %endif %- Wait100Cycles
 %-BW_METHOD_END Wait100Cycles
 %-************************************************************************************************************
@@ -494,6 +525,10 @@ void %'ModuleName'%.%WaitCycles(word cycles)
   while(cycles > 100) {
     %'ModuleName'%.%Wait100Cycles();
     cycles -= 100;
+  }
+  while(cycles > 10) {
+    %'ModuleName'%.%Wait10Cycles();
+    cycles -= 10;
   }
 }
 
@@ -509,7 +544,7 @@ void %'ModuleName'%.%WaitCycles(word cycles)
 %endif
 void %'ModuleName'%.%Waitms(word ms)
 {
-%if (CPU_FAMILY = "HCS08") | (CPU_FAMILY = "HC08") | (CPU_FAMILY = "RS08")  | (CPU_FAMILY = "HCS12X") | (CPU_FAMILY = "HCS12")
+%if (CPU_FAMILY = "Kinetis") | (CPU_FAMILY = "HCS08") | (CPU_FAMILY = "HC08") | (CPU_FAMILY = "RS08")  | (CPU_FAMILY = "HCS12X") | (CPU_FAMILY = "HCS12")
   word msCycles; /* cycles for 1 ms */
 
 %if defined(LowClock_kHz) | defined(SlowClock_kHz)
@@ -531,19 +566,17 @@ void %'ModuleName'%.%Waitms(word ms)
   }
 %else
   /* static clock/speed configuration */
+%if (CPU_FAMILY = "Kinetis")
+  msCycles = %'ModuleName'%.NofCyclesMs(1, CPU_CORE_CLK_HZ);
+%else
   msCycles = %'ModuleName'%.NofCyclesMs(1, CPU_BUS_CLK_HZ);
+%endif
 %endif
   while(ms>0) {
     %'ModuleName'%.WaitCycles(msCycles);
   %if WatchdogEnabled='yes'
     %@Watchdog@'ModuleName'%.Clear();                            %>40/* kick the dog in order not to timeout */
   %endif
-    ms--;
-  }
-%elif (CPU_FAMILY = "Kinetis")
-  /* we do not have %'ProcessorModule'%.%Delay100usFunction() for Kinetis: using a different (not exact) method */
-  while (ms>0) {
-    %'ModuleName'%.WaitCycles(1000);
     ms--;
   }
 %else
@@ -667,6 +700,34 @@ void %'ModuleName'%.%WaitOSms(void)
 %CODE_BEGIN
 %CODE_END
 %-
+%if (%Compiler = "IARARM")
+%- need to implement the handler in assembly, as IAR does not support inline assembly with labels?
+%FILE %'DirRel_Code'%'ModuleName'%.%Wait100Cycles.s
+  /* use code segment, and we are generating ARM thumb code: */
+  RSEG    CODE:CODE(2)
+  thumb
+
+  /* external interface declaration; */
+  PUBLIC %'ModuleName'%.%Wait100Cycles
+
+/*-----------------------------------------------------------*/
+%'ModuleName'%.%Wait100Cycles:
+  /* bl to here:  [4] */
+  movs r0,#0   /* [1] load loop counter */
+  loop:        /* 9*[10] */
+  nop          /* [1] */
+  nop          /* [1] */
+  nop          /* [1] */
+  nop          /* [1] */
+  nop          /* [1] */
+  adds r0,#1   /* [1] increment loop counter */
+  cmp r0,#9    /* [1] 9*10 cycles */
+  bls loop     /* [3] for taken, [1] for not taken */
+  nop          /* additional nop to fill up to 100 cycles */
+  bx lr        /* return to caller */
+/*-----------------------------------------------------------*/
+  END
+%endif %- (%Compiler = "IARARM")
 %else %- Language (& Compiler)
   %error^ This bean is not implemented in selected language & compiler !
 %endif %- Language (& Compiler)

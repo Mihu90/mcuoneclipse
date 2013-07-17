@@ -127,7 +127,7 @@
 
 /* Macros used by Processor Expert */
 %if %DisabledInterruptsInStartup='yes'
-#define PEX_RTOS_INIT()                                          %>>portDISABLE_INTERRUPTS() /* disable all interrupts, they get enabled in vStartScheduler() */
+#define PEX_RTOS_INIT()                                          %>>portDISABLE_ALL_INTERRUPTS() /* disable all interrupts, they get enabled in vStartScheduler() */
 %else
 #define PEX_RTOS_INIT()                                          %>>/* RTOS adapter is configured not to disable interrupts */
 %endif
@@ -970,7 +970,7 @@ void %'ModuleName'%.%Init(void);
 %-BW_METHOD_BEGIN vApplicationStackOverflowHook
 %ifdef vApplicationStackOverflowHook
 %INTERFACE vApplicationStackOverflowHook
-void %vApplicationStackOverflowHook(xTaskHandle *pxTask, signed portCHAR *pcTaskName);
+void %vApplicationStackOverflowHook(xTaskHandle pxTask, signed portCHAR *pcTaskName);
 %define! ParpxTask
 %define! ParpcTaskName
 %include Common\FreeRTOSvApplicationStackOverflowHook.Inc
@@ -1092,6 +1092,7 @@ static uint8_t PrintStatus(const %@Shell@'ModuleName'%.StdIOType *io) {
 #if configUSE_TRACE_FACILITY /* FreeRTOS trace feature enabled */
   %@Shell@'ModuleName'%.SendStr((unsigned char*)"TASK LIST:\r\nName\t\tStatus\tPrio\tStack\tTCB#\r\n", io->stdOut);
   %@Shell@'ModuleName'%.SendStr((unsigned char*)%@Shell@'ModuleName'%.DASH_LINE, io->stdOut);
+  %@Shell@'ModuleName'%.SendStr((unsigned char*)"\r\n", io->stdOut);
   /* task list and status */
   bufSize = 40*uxTaskGetNumberOfTasks();  /* about 40 bytes for a task should be enough */
 #if FRTOS_MEMORY_SCHEME==1 /* this scheme does not allow deallocation of memory */
@@ -1954,7 +1955,9 @@ void %@TickCntr@OnInterrupt(void)
     MOVE.L D0, D7 ; /* save ulSavedInterruptMask for later */
   }
   (void)%@TickCntr@'ModuleName'%.Reset(); /* reset tick counter: need this for trace */
-  vTaskIncrementTick();
+  if (xTaskIncrementTick()!=pdFALSE) {
+    taskYIELD();
+  }
   asm {
     MOVE.L D7,D0
     JSR ulPortSetIPL
@@ -1962,11 +1965,6 @@ void %@TickCntr@OnInterrupt(void)
 #if configUSE_TICKLESS_IDLE == 1
   portTickCntr++;
 #endif
-  /* If we are using the pre-emptive scheduler then also request a
-     context switch as incrementing the tick could have unblocked a task. */
-  #if configUSE_PREEMPTION == 1
-  taskYIELD();
-  #endif
   /* now generate interrupt exit code */
   asm {
     MOVEM.L    (A7),D0-D2/D7/A0-A1                               %>40 /* Restore processor registers from stack */
@@ -1990,14 +1988,18 @@ void %@TickCntr@OnInterrupt(void)
     /* A context switch might happen so save the context. */
     portSAVE_CONTEXT();
     %@TickCntr@'ModuleName'%.Reset(); /* reset tick counter: need this for trace */
-    vTaskIncrementTick();/* Increment the tick */
+    if (xTaskIncrementTick()!=pdFALSE) {
+      taskYIELD();
+    }
     /* ... then see if the new tick value has necessitated a context switch. */
     vTaskSwitchContext();
     /* Restore the context of a task - which may be a different task to that interrupted. */
     portRESTORE_CONTEXT(); /* includes PULH and RTI */
   #else
     %@TickCntr@'ModuleName'%.Reset(); /* reset tick counter: need this for trace */
-    vTaskIncrementTick();
+    if (xTaskIncrementTick()!=pdFALSE) {
+      taskYIELD();
+    }
     __asm("PULH");
     __asm("RTI");
   #endif
@@ -2016,14 +2018,18 @@ void %@TickCntr@OnInterrupt(void)
     /* A context switch might happen so save the context. */
     portSAVE_CONTEXT();
     %@TickCntr@'ModuleName'%.Reset(); /* reset tick counter: need this for trace */
-    vTaskIncrementTick(); /* Increment the tick */
+    if (xTaskIncrementTick()!=pdFALSE) {
+      taskYIELD();
+    }
     /* ... then see if the new tick value has necessitated a context switch. */
     vTaskSwitchContext();
     /* Restore the context of a task - which may be a different task to that interrupted. */
     portRESTORE_CONTEXT(); /* includes RTI */
   #else
     %@TickCntr@'ModuleName'%.Reset(); /* reset tick counter: need this for trace */
-    vTaskIncrementTick();
+    if (xTaskIncrementTick()!=pdFALSE) {
+      taskYIELD();
+    }
     __asm("RTI"); /* return from interrupt */
   #endif
 %elif (CPUfamily = "56800")
@@ -2045,7 +2051,9 @@ void %@TickCntr@OnInterrupt(void)
 //  }
   {
      %@TickCntr@'ModuleName'%.Reset(); /* reset tick counter: need this for trace */
-     vTaskIncrementTick();
+    if (xTaskIncrementTick()!=pdFALSE) {
+      taskYIELD();
+    }
   }
 //  asm {
 //    MOVE.L D7,D0
@@ -2057,11 +2065,6 @@ void %@TickCntr@OnInterrupt(void)
 #if configUSE_TICKLESS_IDLE == 1
   portTickCntr++;
 #endif
-  #if configUSE_PREEMPTION == 1
-  {
-    taskYIELD();
-  }
-  #endif
   /* now generate interrupt exit code */
 //  asm {
 //    MOVEM.L    (A7),D0-D2/D7/A0-A1                             %>40 /* Restore processor registers from stack */
@@ -2301,7 +2304,7 @@ void %'ModuleName'%.%vTaskStepTick(portTickType xTicksToJump)
 %define! ParpxTask
 %define! ParpcTaskName
 %include Common\FreeRTOSvApplicationStackOverflowHook.Inc
-void %vApplicationStackOverflowHook(xTaskHandle *pxTask, signed portCHAR *pcTaskName)
+void %vApplicationStackOverflowHook(xTaskHandle pxTask, signed portCHAR *pcTaskName)
 {
   /* This will get called if a stack overflow is detected during the context
      switch.  Set configCHECK_FOR_STACK_OVERFLOWS to 2 to also check for stack
