@@ -128,10 +128,10 @@
 #define configMAX_TASK_NAME_LEN                                  %>50 %TaskNameLength
 %if %UseTraceFacility='yes'
 #define configUSE_TRACE_FACILITY                                 %>50 1
-#define configINCLUDE_STATS_FORMATTING_FUNCTIONS                 %>50 1
+#define configUSE_STATS_FORMATTING_FUNCTIONS                     %>50 1
 %else
 #define configUSE_TRACE_FACILITY                                 %>50 0
-#define configINCLUDE_STATS_FORMATTING_FUNCTIONS                 %>50 0
+#define configUSE_STATS_FORMATTING_FUNCTIONS                     %>50 0
 %endif
 %if %Use16bitTicks='yes'
 #define configUSE_16_BIT_TICKS                                   %>50 1
@@ -300,12 +300,12 @@
 %elif MemoryScheme = "Scheme4"
 #define FRTOS_MEMORY_SCHEME                 %>50 4 /* memory scheme 4 */
 %endif
-
+%if CommandInterpreterEnabled='yes'
 %- --------------------------------------------------------------------
 /* CommandInterpreter configuration. */
 #define configCOMMAND_INT_MAX_OUTPUT_SIZE                        %>50 %CommandIntMaxOutputSize
+%endif
 %- --------------------------------------------------------------------
-
 %if (CPUfamily = "ColdFireV1")
 /* It is not advisable to change these values on a ColdFire V1 core. */
 %endif
