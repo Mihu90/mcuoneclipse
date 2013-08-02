@@ -47,19 +47,22 @@
     <Type>
       <Type>TEnumSpec</Type>
       <Name>typeUSBDeviceClass</Name>
-      <Items lines_count="3">
+      <Items lines_count="4">
         <Line>CDC Device</Line>
         <Line>HID Keyboard Device</Line>
+        <Line>HID Mouse Device</Line>
         <Line>MSD Host</Line>
       </Items>
-      <Hints lines_count="3">
+      <Hints lines_count="4">
         <Line>Communication Device Class</Line>
         <Line>Human Interface Device Class (Keyboard)</Line>
+        <Line>Human Interface Device Class (Mouse)</Line>
         <Line>Mass Storage Device</Line>
       </Hints>
-      <Defines lines_count="3">
+      <Defines lines_count="4">
         <Line>CDC Device</Line>
         <Line>HID Keyboard Device</Line>
+        <Line>HID Mouse Device</Line>
         <Line>MSD Host</Line>
       </Defines>
     </Type>
