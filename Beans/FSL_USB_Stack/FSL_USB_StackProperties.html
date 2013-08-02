@@ -231,10 +231,11 @@ For Kinetis, select 'Init_USB_OTG_VAR0'.
 <li>
 <a name="USBDeviceClass">
 <b>Device Class</b></a> - Device class to be used<br /><br />
-There are 3 options:<br />
+There are 4 options:<br />
 <ul>
   <li><u>CDC Device</u>: Communication Device Class</li>
   <li><u>HID Keyboard Device</u>: Human Interface Device Class (Keyboard)</li>
+  <li><u>HID Mouse Device</u>: Human Interface Device Class (Mouse)</li>
   <li><u>MSD Host</u>: Mass Storage Device</li>
 </ul><br />
 
@@ -260,6 +261,18 @@ The following items are available only if the group is enabled (the value is "En
   <li>
   <a name="HIDKDevice">
   <b>HID Keyboard</b></a> - Interface to HID Keyboard class
+  </li>
+</ul>
+</li>
+<li>
+<a name="HIDMDeviceGroup">
+<b>HID Mouse Device</b></a> - HID Mouse Device Class Interface<br />
+The following items are available only if the group is enabled (the value is "Enabled"):<br />
+
+<ul>
+  <li>
+  <a name="HIDMDevice">
+  <b>HID Mouse</b></a> - Interface to HID Mouse class
   </li>
 </ul>
 </li>
